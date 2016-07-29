@@ -2,7 +2,6 @@
 import ngims
 import ngimsGITM
 
-
 startDate = '20150415'
 endDate = '20150515'
 files = ngims.getfiles(startDate,endDate,version='v06')

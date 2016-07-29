@@ -17,26 +17,6 @@ class DataLoader():
 
         return data
 
-    
-    # def clean(species='all',maxprec=1.0):
-    #     '''Filter out data with low precision'''
-
-    #     if species.lower()=='all':
-    #         keys = self.species.keys()
-    #     else:
-    #         keys = [species]
-
-    #     for key in keys:
-    #         den = list(self.species[key]['density'])
-    #         prec = list(self.species[key]['precision'])
-
-    #         for i in range(len(den)):
-    #             if prec[i] > maxprec:
-    #                 for jkey in self.species[key].keys():
-    #                     self.species[key][jkey].pop(i)
-    #     return
-
-
 
 def readCSN(file):
     '''Function to read NGIMS data
