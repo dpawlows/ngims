@@ -1,12 +1,15 @@
 #!/usr/bin/python
 
-import glob.glob
+from glob import glob
 from matplotlib import pyplot as pp
 import datetime
 
-
+"""
+Classes and functions for reading and working with MAVEN NGIMS data
+"""
 
 class DataLoader():
+    """Class for handling filtering NGIMS data"""
 
     def get(self,data,**kwargs):
         for key in kwargs:
@@ -36,8 +39,11 @@ class DataLoader():
 
 
 def readCSN(file):
-    '''Usage: readCSN(file)
+    '''Function to read NGIMS data
+    Usage: data = readCSN(file)
     file: required input, name of file to be read
+    data is a list of dicts; each dict contains a single measurement
+    and relevant metadata.
     '''
 
     data = []

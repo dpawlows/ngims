@@ -1,9 +1,18 @@
-from ngims import *
+"""
+Functions and variables useful for working with NGIMS data and the M-GITM 
+model simultaneously...
+"""
+
+import ngims
 
 def makeSatelliteFile(data,satfile = 'satellite.dat'):
-        print "Making satellite file...."
+	"""Creates a satellite file for use with M-GITM.
+	makeSatelliteFile(data,satfile = 'satellite.dat')
+	data is ngims data list."""
 
-        satdata = ngims.get(data,species='Ar')
+        print "Making satellite file...."
+        dataloader = ngims.DataLoader()
+        satdata = dataloader.get(data,species='Ar')
 
         f = open(satfile,'w')
         f.write('#START\n')
