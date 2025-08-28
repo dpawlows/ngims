@@ -2,10 +2,13 @@
 
 from glob import glob
 import datetime
-from numpy import mean
+import argparse
+import os
+import re
+
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as pp
-import argparse
 
 """
 Classes and functions for reading and working with MAVEN NGIMS data.
@@ -194,7 +197,16 @@ def getfiles(start,end,dentype='csn',version=None,dir=''):
     return results
 
 
-def plot_track(data):
+def timestamp_from_filename(filename):
+    """Extract a timestamp string from a NGIMS filename."""
+    base = os.path.basename(filename)
+    match = re.search(r'(\d{8}[_T]?\d{6})', base)
+    if match:
+        return match.group(1).replace('_', 'T')
+    return 'unknown'
+
+
+def plot_track(data, outfile):
     """Quickly plot satellite track and altitude.
 
     Parameters
@@ -202,6 +214,8 @@ def plot_track(data):
     data : list of dict or :class:`pandas.DataFrame`
         Output from :func:`readCSN` containing ``lat``, ``lon``, ``alt`` and
         ``time`` keys. A DataFrame with these columns may also be supplied.
+    outfile : str
+        Name of file to write the plot to.
     """
 
     # Ensure we have a DataFrame for easy access and sorting
@@ -221,13 +235,19 @@ def plot_track(data):
 
     # Plot latitude vs longitude colored by time progression
     times = pd.to_datetime(df['time'])
-    time_nums = (times - times.min()).dt.total_seconds()
+    # Use absolute time in seconds for color mapping
+    time_nums = times.astype('int64') / 1e9
     sc = axs[0].scatter(df[lon_key], df['lat'], c=time_nums,
                         s=4, cmap='plasma')
     axs[0].set_xlabel('Longitude (°)')
     axs[0].set_ylabel('Latitude (°)')
     axs[0].set_title('Satellite Location')
-    fig.colorbar(sc, ax=axs[0], label='Time Progression')
+
+    cb = fig.colorbar(sc, ax=axs[0])
+    tick_locs = np.linspace(time_nums.min(), time_nums.max(), 5)
+    cb.set_ticks(tick_locs)
+    cb.set_ticklabels(pd.to_datetime(tick_locs, unit='s').strftime('%H:%M:%S'))
+    cb.set_label('Time (UTC)')
 
     # Plot altitude vs time
     axs[1].plot(df['time'], df['alt'], '.', ms=2)
@@ -235,7 +255,7 @@ def plot_track(data):
     axs[1].set_ylabel('Altitude (km)')
     axs[1].set_title('Altitude vs Time')
 
-    pp.savefig('track.png')
+    pp.savefig(outfile)
 
 
 if __name__ == "__main__":
@@ -246,4 +266,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     data = readCSN(args.filename, outbound=args.outbound)
-    plot_track(data)
+    ts = timestamp_from_filename(args.filename)
+    output_file = f'track_{ts}.png'
+    plot_track(data, output_file)
