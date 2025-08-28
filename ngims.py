@@ -3,8 +3,9 @@
 from glob import glob
 import datetime
 from numpy import mean
-import pandas as pd 
+import pandas as pd
 from matplotlib import pyplot as pp
+import argparse
 
 """
 Classes and functions for reading and working with MAVEN NGIMS data.
@@ -218,11 +219,15 @@ def plot_track(data):
 
     fig, axs = pp.subplots(2, 1, figsize=(8, 8), constrained_layout=True)
 
-    # Plot latitude vs longitude
-    axs[0].plot(df[lon_key], df['lat'], '.', ms=2)
+    # Plot latitude vs longitude colored by time progression
+    times = pd.to_datetime(df['time'])
+    time_nums = (times - times.min()).dt.total_seconds()
+    sc = axs[0].scatter(df[lon_key], df['lat'], c=time_nums,
+                        s=4, cmap='plasma')
     axs[0].set_xlabel('Longitude (°)')
     axs[0].set_ylabel('Latitude (°)')
     axs[0].set_title('Satellite Location')
+    fig.colorbar(sc, ax=axs[0], label='Time Progression')
 
     # Plot altitude vs time
     axs[1].plot(df['time'], df['alt'], '.', ms=2)
@@ -234,5 +239,11 @@ def plot_track(data):
 
 
 if __name__ == "__main__":
-    data = readCSN('mvn_ngi_l2_ion-abund-15626_20150417T222107_v08_r01.csv',outbound=True)
+    parser = argparse.ArgumentParser(description='Plot NGIMS track from a CSV file')
+    parser.add_argument('filename', help='Input NGIMS CSV file')
+    parser.add_argument('--outbound', action='store_true',
+                        help='Include outbound portion of orbit')
+    args = parser.parse_args()
+
+    data = readCSN(args.filename, outbound=args.outbound)
     plot_track(data)
