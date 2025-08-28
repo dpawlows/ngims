@@ -4,7 +4,8 @@ model simultaneously...
 """
 
 import ngims
-import pdb
+import pandas as pd 
+import glob
 from datetime import datetime, timedelta
 from numpy import where, array
 import traceback
@@ -41,7 +42,7 @@ def outputNGIMS(data,output='ngims.dat',*args,**kwargs):
 	return 1
 	f.close()
 
-def makeSatelliteFile(data,species,satfile = 'sat.dat',*args,**kwargs):
+def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 	"""Creates a satellite file for use with M-GITM. Can average the data since NGIMS observations are every 
 		few seconds.
 	makeSatelliteFile(data,satfile = 'satellite.dat,*args,**kwargs) 
@@ -50,7 +51,7 @@ def makeSatelliteFile(data,species,satfile = 'sat.dat',*args,**kwargs):
 	args:
 	kwargs:
 		timeAveraging=averagingTime: will average data over averagingTime seconds
-		locAveraging=averagingLoc: will average data over averagingLoc km
+		locAveraging=averagingLoc: will average data over averagingLoc km altitude
 		location=locationlist; output will be 1 satfile per location. Each location 
 			will have one lat, lon, alt per orbit
 		locationtype=locationtype (alt lon or lat); required if location kw exists
@@ -106,9 +107,31 @@ def makeSatelliteFile(data,species,satfile = 'sat.dat',*args,**kwargs):
 
 
 	dataloader = ngims.DataLoader()
-
-	# satdata = dataloader.get(data,species=species)
 	satdata = data
+
+	seen = set()
+	unique_satdata = []
+	for d in satdata:
+		key = (d['time'], round(d['lat'], 4), round(d['lon'], 4), round(d['alt'], 2))
+		if key not in seen:
+			seen.add(key)
+			unique_satdata.append({
+				'time': d['time'],
+				'lat': d['lat'],
+				'lon': d['lon'],
+				'alt': d['alt'],
+				'orbit': d['orbit']
+			})
+
+	satdata = unique_satdata
+
+	# Apply maxalt filter if specified
+	if 'maxalt' in kwargs:
+		maxalt = float(kwargs['maxalt'])
+		satdata = [d for d in satdata if d['alt'] <= maxalt]
+		print(f"Filtering data to altitudes ≤ {maxalt} km")
+		
+	print(f"{len(satdata)} records remain.")
 
 	if isAveraging:
 		newdata = []
@@ -266,3 +289,42 @@ def makeSatelliteFile(data,species,satfile = 'sat.dat',*args,**kwargs):
 
 
 	return satdata
+
+def read_satellite_file(satfile):
+    """Parse your satellite file starting with #START"""
+    data = []
+    with open(satfile, 'r') as f:
+        lines = f.readlines()
+        start_idx = next(i for i, line in enumerate(lines) if line.strip().startswith('#START')) + 1
+        for line in lines[start_idx:]:
+            parts = line.strip().split()
+            if len(parts) < 10:
+                continue
+            try:
+                time = datetime(int(parts[0]), int(parts[1]), int(parts[2]),
+                                int(parts[3]), int(parts[4]), int(parts[5]))
+                lon = float(parts[7])
+                lat = float(parts[8])
+                alt = float(parts[9])
+                data.append({'time': time, 'lon': lon, 'lat': lat, 'alt': alt})
+            except:
+                continue
+    return pd.DataFrame(data)
+
+def read_raw_csv_files(csvfiles):
+	"""Reads and combines NGIMS CSV files given a list of file paths"""
+	dfs = []
+	for f in csvfiles:
+		try:
+			df = pd.read_csv(f, parse_dates=['t_utc'])
+			df = df[['t_utc', 'long', 'lat', 'alt']]
+			df.rename(columns={'t_utc': 'time'}, inplace=True)
+
+			# Wrap longitudes to 0–360
+			df['long'] = df['long'] % 360
+			dfs.append(df)
+		except Exception as e:
+			print(f"Error reading {f}: {e}")
+	return pd.concat(dfs, ignore_index=True)
+
+

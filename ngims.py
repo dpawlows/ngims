@@ -167,12 +167,12 @@ def readCSN(file,outbound):
     f.close()
     return data
 
-def getfiles(start,end,type='csn',version=None,dir=''):
-    if type != 'csn' and type != 'ion':
-        print('type: {} is not recognized'.format(type))
+def getfiles(start,end,dentype='csn',version=None,dir=''):
+    if dentype != 'csn' and dentype != 'ion':
+        print('type: {} is not recognized'.format(dentype))
         exit(1)
 
-    filelist = glob(dir+'mvn_ngi*'+type+'*.csv')
+    filelist = glob(dir+'mvn_ngi*'+dentype+'*.csv')
 
     sdate = datetime.date(int(start[0:4]),int(start[4:6]),int(start[6:8]))
     edate = datetime.date(int(end[0:4]),int(end[4:6]),int(end[6:8]))
@@ -187,7 +187,6 @@ def getfiles(start,end,type='csn',version=None,dir=''):
         datetime.date(int(f[-27:-23]),int(f[-23:-21]),int(f[-21:-19]))\
         and edate >=  datetime.date(int(f[-27:-23]),\
             int(f[-23:-21]),int(f[-21:-19])) and (version in f or version == None) ]
-
     pos = filelist[0].rfind('csv')
     results.sort(key = lambda x: x[pos-30:pos-25]) #sort by tid
 
