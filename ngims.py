@@ -191,3 +191,53 @@ def getfiles(start,end,dentype='csn',version=None,dir=''):
     results.sort(key = lambda x: x[pos-30:pos-25]) #sort by tid
 
     return results
+
+
+def plot_track(data, show=True):
+    """Quickly plot satellite track and altitude.
+
+    Parameters
+    ----------
+    data : list of dict or :class:`pandas.DataFrame`
+        Output from :func:`readCSN` containing ``lat``, ``lon``, ``alt`` and
+        ``time`` keys. A DataFrame with these columns may also be supplied.
+    show : bool, optional
+        Call :func:`matplotlib.pyplot.show` if ``True``. Default is ``True``.
+
+    Returns
+    -------
+    (fig, axs) : tuple
+        Handle to the created figure and axes for further manipulation.
+    """
+
+    # Ensure we have a DataFrame for easy access and sorting
+    if isinstance(data, pd.DataFrame):
+        df = data.copy()
+    else:
+        df = pd.DataFrame(data)
+
+    # Sort by time to make plots sensible
+    if 'time' in df.columns:
+        df = df.sort_values('time')
+
+    # Longitude column can be named either "lon" or "long"
+    lon_key = 'lon' if 'lon' in df.columns else 'long'
+
+    fig, axs = pp.subplots(2, 1, figsize=(8, 8), constrained_layout=True)
+
+    # Plot latitude vs longitude
+    axs[0].plot(df[lon_key], df['lat'], '.', ms=2)
+    axs[0].set_xlabel('Longitude (°)')
+    axs[0].set_ylabel('Latitude (°)')
+    axs[0].set_title('Satellite Location')
+
+    # Plot altitude vs time
+    axs[1].plot(df['time'], df['alt'], '.', ms=2)
+    axs[1].set_xlabel('Time')
+    axs[1].set_ylabel('Altitude (km)')
+    axs[1].set_title('Altitude vs Time')
+
+    if show:
+        pp.show()
+
+    return fig, axs
