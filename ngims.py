@@ -106,7 +106,7 @@ def writeCSVOrbits(filelist):
                 ))
     g.close()
 
-def readCSN(file,outbound):
+def readCSN(file,outbound=False):
     '''Function to read NGIMS data
     Usage: data = readCSN(file)
     file: required input, name of file to be read
@@ -193,7 +193,7 @@ def getfiles(start,end,dentype='csn',version=None,dir=''):
     return results
 
 
-def plot_track(data, show=True):
+def plot_track(data):
     """Quickly plot satellite track and altitude.
 
     Parameters
@@ -201,13 +201,6 @@ def plot_track(data, show=True):
     data : list of dict or :class:`pandas.DataFrame`
         Output from :func:`readCSN` containing ``lat``, ``lon``, ``alt`` and
         ``time`` keys. A DataFrame with these columns may also be supplied.
-    show : bool, optional
-        Call :func:`matplotlib.pyplot.show` if ``True``. Default is ``True``.
-
-    Returns
-    -------
-    (fig, axs) : tuple
-        Handle to the created figure and axes for further manipulation.
     """
 
     # Ensure we have a DataFrame for easy access and sorting
@@ -237,7 +230,9 @@ def plot_track(data, show=True):
     axs[1].set_ylabel('Altitude (km)')
     axs[1].set_title('Altitude vs Time')
 
-    if show:
-        pp.show()
+    pp.savefig('track.png')
 
-    return fig, axs
+
+if __name__ == "__main__":
+    data = readCSN('mvn_ngi_l2_ion-abund-15626_20150417T222107_v08_r01.csv',outbound=True)
+    plot_track(data)
