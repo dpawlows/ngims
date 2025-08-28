@@ -232,7 +232,3 @@ def plot_track(data):
 
     pp.savefig('track.png')
 
-
-if __name__ == "__main__":
-    data = readCSN('mvn_ngi_l2_ion-abund-15626_20150417T222107_v08_r01.csv',outbound=True)
-    plot_track(data)
