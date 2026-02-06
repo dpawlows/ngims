@@ -180,6 +180,7 @@ def getfiles(start,end,dentype='csn',version=None,dir=''):
 
     sdate = datetime.date(int(start[0:4]),int(start[4:6]),int(start[6:8]))
     edate = datetime.date(int(end[0:4]),int(end[4:6]),int(end[6:8]))
+
     if version == None:
         results = [f for f in filelist if sdate <= \
         datetime.date(int(f[-27:-23]),int(f[-23:-21]),int(f[-21:-19]))\

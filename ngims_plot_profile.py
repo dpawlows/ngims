@@ -6,16 +6,19 @@ import sys
 from matplotlib import pyplot as pp
 import numpy as np
 from glob import glob
+import datetime
+import pandas as pd 
+from collections import defaultdict 
 
 varmap = {16:'O$^+$',32:'O$_2^+$',44:'CO$_2^+$'}
 def get_args(argv):
 
     
     help = 0
-    version = 'v06'
+    version = None
     start = ''
     end = ''
-    type = 'csn'
+    datatype = 'csn'
     pvar = ''
     minv = 0.0
     maxv = 0.0
@@ -23,6 +26,8 @@ def get_args(argv):
     maxalt = 250
     inboundonly = False
     orbitave = False
+    plotall = False
+    orbit = None
 
     for arg in argv:
 
@@ -53,12 +58,12 @@ def get_args(argv):
 
             m = re.match(r'-ion',arg)
             if m:
-                type = 'ion'
+                datatype = 'ion'
                 IsFound = 1
 
             m = re.match(r'-csn',arg)
             if m:
-                type = 'csn'
+                datatype = 'csn'
                 IsFound = 1
 
             m = re.match(r'-inboundonly',arg)
@@ -90,7 +95,7 @@ def get_args(argv):
                 maxalt=float(m.group(1))
                 IsFound = 1 
 
-            m = re.match(r'-orbit=(.*)',arg)
+            m = re.match(r'-orbits=(.*)',arg)
             if m:
                 orbits=[int(o) for o in m.group(1).split(',')]
                 IsFound = 1  
@@ -100,6 +105,16 @@ def get_args(argv):
                 orbitave=True
                 IsFound = 1  
 
+            m = re.match(r'-plotall',arg)
+            if m:
+                plotall=True
+                IsFound = 1  
+                
+            m = re.match(r'-orbit=(.*)',arg)
+            if m:
+                orbit=int(m.group(1))
+                IsFound = 1  
+
             if iError > 0:
                 print(message)
                 exit(iError)
@@ -107,14 +122,16 @@ def get_args(argv):
     args = {'start':start,'end':end, 
             'help':help,
             'version':version,
-            'type':type,
+            'datatype':datatype,
             'pvar':pvar,
             'minv':minv,
             'maxv':maxv,
             'orbits':orbits,
             'maxalt':maxalt,
             'inboundonly':inboundonly,
-            'orbitave':orbitave}
+            'orbitave':orbitave,
+            'orbit':orbit,
+            'plotall':plotall}
 
     return args
 
@@ -130,9 +147,9 @@ if (args["help"]):
     print('Usage : ')
     print('ngims_plot_profile.py -orbit=orbits -start=start -end=end -help -ver=version -csn/ion -var=var -min=minv ' )
     print('     -max=maxv')
-    print('     Required: -orbit or -start and -end')
+    print('     Required: -orbits or -start and -end')
     print('                -var')
-    print('     -orbit=orbit1,orbit2,orbit3,... : a list of orbit numbers to plot ')
+    print('     -orbits=orbit1,orbit2,orbit3,... : a list of orbit numbers to plot ')
     print('     -start=yyyymmdd : start date of dataset')
     print('     -end=yyyymmdd : end date of dataset')
     print('     -csn or -ion    (default is csn)')
@@ -146,10 +163,12 @@ if (args["help"]):
     print('     -maxalt=maxalt : maximum altitude to plot (default is 250km)')
     print('     -inboundonly : if set only plot inbound data')
     print('     -orbitave : plot orbit average for the specified time range or orbit numbers')
-
+    print('     -orbit=X :  also plot that orbit as a thin colored line (assumes -orbitave)')
+    print('     -plotall: if orbitave, still plot all orbits')
     exit()
 
-type = args['type']
+datatype = args['datatype']
+
 if args['pvar'] == 'allions':
     allions = True 
     varlist = [32,44,16]
@@ -162,18 +181,18 @@ else:
 
 #The data have different column names depending if we are dealing with neutral files or ion files
 speciesColumn = 'species'
-qualityFlag = 'IV'
-if type == 'ion':
+qualityFlag = ['IV','IU']
+if datatype == 'ion':
     speciesColumn = 'ion_mass'
     qualityFlag = ['SCP','SC0']
 
 #User may specify start and end times, or, a list of orbit numbers. Create the filelist.
 versions = [] #handle different versions of ngims data
 if len(args['start']) > 0:
-    files = ngims.getfiles(args['start'],args['end'],type=type,version=args['version'])
+    files = ngims.getfiles(args['start'],args['end'],dentype=datatype,version=args['version'])
 else:
     files = []
-    filelist = glob('*'+type+'*csv')
+    filelist = glob('*'+datatype+'*csv')
 
     for file in filelist:
         version = file[-11:-8]
@@ -197,48 +216,96 @@ if len(versions) > 1:
 #Given a list of files, grab the data
 automin = True if args['minv'] == 0.0 else False
 automax = True if args['maxv'] == 0.0 else False
-mini = 9999
-maxi = -9999
 
 fig = pp.figure()
 ax = pp.subplot(111)
 
+if args['orbitave']:
+    profiles = defaultdict(list)  
+    alt_grid = np.arange(100, maxalt + 1, 2.5)
+    
+    overlay_orbit = args['orbit'] if args['orbitave'] and args['orbit'] else None
+
 for fi in files:
     data = ngims.readNGIMS(fi)
- 
-    data = data[(data["alt"] < 350)]
-    data = data[data["quality"].isin(qualityFlag)]
+    data1 = data[data["alt"] < 350]
+    data2 = data1[data1["quality"].isin(qualityFlag)]
+    meta = ngims.getorbit(fi)
+    orbit_num = meta['orbit']
+    is_overlay = (overlay_orbit is not None and orbit_num == overlay_orbit)
 
     for pvar in varlist:
-        newdf = data[(data[speciesColumn] == int(pvar))]
-        if newdf.shape[0] == 0:
-            print("Error in ngims_plot_profile: Empty data frame from {}".format(fi))
-            
+        newdf = data2[data2[speciesColumn] == data2[speciesColumn].dtype.type(pvar)]
+
+        if newdf.empty:
+            print(f"Skipping {pvar} in {fi}: no data")
+            continue
+
         if args['inboundonly']:
-            minalt = newdf['alt'].idxmin()
-            indices = list(newdf.index.values)
-            imin = indices.index(minalt)+1
-            newdf = newdf.loc[indices[0:imin]] #update the df with only inbound data
-        density = np.log10(newdf.loc[newdf["alt"] < maxalt,"abundance"]*1e6)
+            min_idx = newdf['alt'].idxmin()
+            newdf = newdf.loc[:min_idx]
+
+        mask_alt = newdf["alt"] < maxalt
+        vals = newdf.loc[mask_alt, "abundance"].values * 1e6
+        vals = vals[vals > 0]
+
+        if len(vals) == 0:
+            continue
+
+        density = np.log10(vals)
+        altitude = newdf.loc[mask_alt, "alt"].values
 
         starred = ''
-        temp = newdf['quality'].isin(['SC0'])
-        if temp.values.sum() / newdf.shape[0] > .75:
+        frac = (newdf['quality'] == 'SC0').mean()
+        if frac > 0.75:
             starred = '*'
-        
-        altitude = newdf.loc[newdf["alt"] < maxalt,'alt'].values
-        
-        # line, = pp.plot(density,altitude,'.',markersize = 5)
-        line, = pp.plot(density,altitude)
-        if allions:
-            line.set_label(varmap[pvar])
-        else:
-            line.set_label(str(data.orbit.values[0])+starred)
 
-        if automin:
-            mini = np.minimum(mini,np.min(density))
-        if automax:
-            maxi = np.maximum(maxi,np.max(density))
+        if args['orbitave'] and not is_overlay:    
+            interp = np.interp(
+                alt_grid,
+                altitude[::-1],     # ensure monotonic
+                density[::-1],
+                left=np.nan,
+                right=np.nan
+                )
+
+            profiles[pvar].append(interp)
+
+        if not args['orbitave'] or args['plotall']:
+            line, = pp.plot(density, altitude)
+            if not args['plotall']:
+                label = pd.to_datetime(newdf.t_utc.iloc[0]).strftime("%m-%d %H:%M") + starred
+                line.set_label(label)
+            else:
+                line.set_linewidth(.5)
+                line.set_color('cornflowerblue')
+
+        if is_overlay:
+            meta = ngims.getorbit(fi)
+            if meta['orbit'] == overlay_orbit:
+                pp.plot(density, altitude, lw=1.5, color='C1',
+                        label=f"Orbit {overlay_orbit}")
+
+
+if args['orbitave']:   
+   for pvar, profs in profiles.items():
+    arr = np.vstack(profiles[pvar])   # shape: (n_orbits, n_alt)
+
+    mean = np.nanmean(arr, axis=0)
+    std  = np.nanstd(arr, axis=0)
+
+
+    pp.plot(mean, alt_grid, color='k', lw=2,
+            label=f"{varmap.get(pvar, pvar)} mean")
+
+    pp.fill_betweenx(
+        alt_grid,
+        mean - std,
+        mean + std,
+        color='k',
+        alpha=0.25,
+        label=r'$\pm 1\sigma$'
+    )
 
 
 
@@ -249,10 +316,22 @@ else:
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),frameon=False)
     # pp.legend(loc='upper right',frameon=False)
+
+
+if automin:
+    mini = np.min(density)
+else:
+    mini = args['minv']
+
+if automax:
+    maxi = np.max(density)
+else:
+    maxi = args['maxv']
+
+minalt = max([100,min(altitude)])
 pp.xlim([mini,maxi])
-pp.ylim([100,maxalt])
+pp.ylim([minalt,maxalt])
 pp.xlabel('Density (#/m$^3$)')
 pp.ylabel('Altitude (km)')
 pp.savefig('plot.png')
-
 
