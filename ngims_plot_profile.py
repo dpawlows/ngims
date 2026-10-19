@@ -216,6 +216,9 @@ if len(versions) > 1:
 #Given a list of files, grab the data
 automin = True if args['minv'] == 0.0 else False
 automax = True if args['maxv'] == 0.0 else False
+mini = np.inf
+maxi = -np.inf
+minalt = np.inf
 
 fig = pp.figure()
 ax = pp.subplot(111)
@@ -237,7 +240,10 @@ for fi in files:
     is_overlay = (overlay_orbit is not None and orbit_num == overlay_orbit)
 
     for pvar in varlist:
-        newdf = data2[data2[speciesColumn] == data2[speciesColumn].dtype.type(pvar)]
+        if datatype == 'ion':
+            newdf = data2[data2[speciesColumn] == int(pvar)]
+        else:
+            newdf = data2[data2[speciesColumn].str.lower() == str(pvar).lower()]
 
         if newdf.empty:
             print(f"Skipping {pvar} in {fi}: no data")
@@ -257,6 +263,9 @@ for fi in files:
 
         density = np.log10(vals)
         altitude = newdf.loc[mask_alt, "alt"].values
+        mini = min(mini, np.min(density))
+        maxi = max(maxi, np.max(density))
+        minalt = min(minalt, np.min(altitude))
 
         starred = ''
         frac = (newdf['quality'] == 'SC0').mean()
@@ -321,17 +330,17 @@ else:
     # pp.legend(loc='upper right',frameon=False)
 
 
-if automin:
-    mini = np.min(density)
-else:
+if not np.isfinite(minalt):
+    print('No {} data found in the selected files; nothing to plot.'.format(args['pvar']))
+    exit(1)
+
+if not automin:
     mini = args['minv']
 
-if automax:
-    maxi = np.max(density)
-else:
+if not automax:
     maxi = args['maxv']
 
-minalt = max([100,min(altitude)])
+minalt = max([100,minalt])
 pp.xlim([mini,maxi])
 pp.ylim([minalt,maxalt])
 pp.xlabel('Density (#/m$^3$)')
