@@ -225,6 +225,8 @@ if args['orbitave']:
     alt_grid = np.arange(100, maxalt + 1, 2.5)
     
     overlay_orbit = args['orbit'] if args['orbitave'] and args['orbit'] else None
+else:
+    overlay_orbit = None
 
 for fi in files:
     data = ngims.readNGIMS(fi)
@@ -242,6 +244,7 @@ for fi in files:
             continue
 
         if args['inboundonly']:
+            #This isn't really necessary as the data have a inbound/outbound flag
             min_idx = newdf['alt'].idxmin()
             newdf = newdf.loc[:min_idx]
 

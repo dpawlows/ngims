@@ -124,6 +124,7 @@ def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 			})
 
 	satdata = unique_satdata
+	satdata.sort(key=lambda d: (d['orbit'], d['time']))
 
 	# Apply maxalt filter if specified
 	if 'maxalt' in kwargs:
@@ -145,7 +146,7 @@ def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 				lon = d['lon']
 				alt = d['alt']
 				dt = time-oldtime
-				if dt.total_seconds() > averagingTime*60.0:
+				if dt.total_seconds() > averagingTime:
 					if len(tempdata) > 1:
 						lons = array([temp['lon'] for temp in tempdata])
 
@@ -157,11 +158,13 @@ def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 							alon = sum(lons)/len(lons)
 							alon = alon - 360 if alon > 180 else alon
 						else:
-							alon = (sum(temp['lon'] for temp in tempdata)/len(tempdata))
+							mid = len(tempdata) // 2
+							alon = tempdata[mid]['lon']
 
+						mid = len(tempdata) // 2
 
 						newdata.append({
-						'time':tempdata[len(tempdata)/2]['time'],
+						'time': tempdata[mid]['time'],
 						'lat':(sum(temp['lat'] for temp in tempdata)/len(tempdata)),
 						'lon':alon,
 						'alt':(sum(temp['alt'] for temp in tempdata)/len(tempdata)),
@@ -192,8 +195,8 @@ def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 				lon = d['lon']
 				alt = d['alt']
 				alts.append(alt)
-				# pdb.set_trace()
-				if abs(alts[-1]-alts[0]) > averagingLoc or d['orbit'] != d['orbit']:
+
+				if abs(alts[-1] - alts[0]) > averagingLoc or d['orbit'] != oldd['orbit']:
 					if len(tempdata) > 1:
 						lons = array([temp['lon'] for temp in tempdata])
 						if min(lons) < -170 and max(lons) > 170:
@@ -204,7 +207,8 @@ def makeSatelliteFile(data,satfile = 'sat.dat',*args,**kwargs):
 							alon = sum(lons)/len(lons)
 							alon = alon - 360 if alon > 180 else alon
 						else:
-							alon = (sum(temp['lon'] for temp in tempdata)/len(tempdata))
+							mid = len(tempdata) // 2
+							alon = tempdata[mid]['lon']
 
 						# pdb.set_trace()
 						newdata.append({

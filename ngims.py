@@ -5,7 +5,7 @@ import datetime
 import argparse
 import os
 import re
-
+import sys
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as pp
@@ -14,6 +14,62 @@ from matplotlib import pyplot as pp
 Classes and functions for reading and working with MAVEN NGIMS data.
 Added a quicker method to simply load a pandas data frame.
 """
+
+# Map from variable names to ngims species
+varmap = {
+    '[CO2+]': 44,
+    '[O2+]': 32,
+    '[O+]': 16,
+    '[N2+]': 28,
+    '[NO+]': 30,
+    '[CO+]': 28,
+    '[C+]': 12,
+    '[CO2]':'CO2',
+    '[N2]':'N2',
+    '[CO]':'CO',
+    '[Ar]':'Ar',
+    '[O]':'O'
+}
+
+def normalize_date(d):
+    """
+    Accepts:
+      - datetime.date
+      - datetime.datetime
+      - 'YYYYMMDD'
+      - 'YYYY-MM-DD'
+
+    Returns:
+      datetime.datetime
+    """
+    if isinstance(d, datetime.date):
+        return datetime.datetime.combine(d, datetime.time.min)
+
+    if isinstance(d, datetime.datetime):
+        return d
+
+    if isinstance(d, str):
+        d = d.strip()
+        for fmt in ("%Y%m%d%H%M%S", "%Y%m%d", "%Y-%m-%d"):
+            try:
+                dt = datetime.datetime.strptime(d, fmt)
+                return dt
+            except ValueError:
+                pass
+        raise ValueError(f"Unrecognized datetime format: {d}")
+
+    raise TypeError(f"Unsupported date type: {type(d)}")
+
+def datetime_from_filename(f):
+    # assumes YYYYMMDD_HHMMSS-style layout at fixed offsets
+    return datetime.datetime(
+        int(f[-27:-23]),
+        int(f[-23:-21]),
+        int(f[-21:-19]),
+        int(f[-18:-16]),
+        int(f[-16:-14]),
+        int(f[-14:-12]),
+    )
 
 class DataLoader():
 
@@ -68,9 +124,15 @@ def getCSN(files,outbound=True):
         exit(1)
 
 def readNGIMS(file): 
-    '''Given a file, load and return a pandas data frame'''
-    data = pd.read_csv(file)
-    return(data)
+    '''Given a file or files, load and return a pandas data frame'''
+    from collections.abc import Iterable
+    if isinstance(file, str):
+        return pd.read_csv(file)
+
+    if isinstance(file, Iterable):
+        return [pd.read_csv(f) for f in file]
+
+    raise TypeError(f"Unsupported type for file: {type(file)}")
 
 def getorbit(file):
     f = open(file,'r')
@@ -171,27 +233,25 @@ def readCSN(file,outbound=False):
     f.close()
     return data
 
-def getfiles(start,end,dentype='csn',version=None,dir=''):
+def getfiles(start,end,dentype='csn',version=None,dir='.'):
     if dentype != 'csn' and dentype != 'ion':
         print('type: {} is not recognized'.format(dentype))
         exit(1)
 
-    filelist = glob(dir+'mvn_ngi*'+dentype+'*.csv')
+    pattern = os.path.join(dir, f"mvn_ngi*{dentype}*.csv")
+    filelist = glob(os.path.expanduser(pattern))
+    if not filelist:
+        print("ERROR: No NGIMS files found.")
+        print(f"  Search pattern: {pattern}")
+        sys.exit(1)
+    sdate = normalize_date(start)
+    edate = normalize_date(end)
 
-    sdate = datetime.date(int(start[0:4]),int(start[4:6]),int(start[6:8]))
-    edate = datetime.date(int(end[0:4]),int(end[4:6]),int(end[6:8]))
-
-    if version == None:
-        results = [f for f in filelist if sdate <= \
-        datetime.date(int(f[-27:-23]),int(f[-23:-21]),int(f[-21:-19]))\
-        and edate >=  datetime.date(int(f[-27:-23]),\
-            int(f[-23:-21]),int(f[-21:-19]))]
-    else:
-        results = \
-        [f for f in filelist if sdate <= \
-        datetime.date(int(f[-27:-23]),int(f[-23:-21]),int(f[-21:-19]))\
-        and edate >=  datetime.date(int(f[-27:-23]),\
-            int(f[-23:-21]),int(f[-21:-19])) and (version in f or version == None) ]
+    results = [
+        f for f in filelist
+        if sdate <= (dt := datetime_from_filename(f)) <= edate
+        and (version is None or version in f)
+        ]
     pos = filelist[0].rfind('csv')
     results.sort(key = lambda x: x[pos-30:pos-25]) #sort by tid
 
